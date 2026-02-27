@@ -10,7 +10,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f9}
 header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
 .cart-icon{position:relative;cursor:pointer;font-size:20px}
 .cart-badge{position:absolute;top:-8px;right:-10px;background:#2ed573;color:white;font-size:12px;padding:2px 6px;border-radius:50%}
-.banner{background:linear-gradient(45deg,#ff6b6b,#ff9f43);color:white;padding:40px;text-align:center;font-size:22px;font-weight:bold}
 .category-bar{display:flex;gap:10px;padding:15px 30px;flex-wrap:wrap;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.05)}
 .category-btn{padding:6px 14px;border:none;border-radius:20px;background:#eee;cursor:pointer}
 .category-btn.active{background:#ff6b6b;color:white}
@@ -33,21 +32,30 @@ header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-con
 .total{margin-top:10px;font-weight:bold;font-size:16px}
 .checkout{margin-top:15px;width:100%;padding:10px;background:#2ed573;border:none;color:white;border-radius:8px;cursor:pointer}
 
-.lang-switch{position:fixed;top:15px;right:80px;z-index:2000;display:flex;gap:8px}
-.lang-switch button{padding:6px 12px;border:none;border-radius:8px;cursor:pointer;background:#fff;color:#333;font-weight:500;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:all .2s}
-.lang-switch button:hover{background:#ff6b6b;color:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.2)}
-.lang-switch button.active{background:#ff6b6b;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+#langSelect{padding:6px 10px;border-radius:6px;cursor:pointer;position:fixed;top:15px;right:80px;z-index:2000;}
 
-@media(max-width:768px){.menu{padding:15px}.cart{width:100%}.lang-switch{top:10px;right:15px}}
+/* 右下角悬浮按钮 */
+.order-history-btn{position:fixed;bottom:20px;right:20px;z-index:2000;padding:8px 14px;border:none;border-radius:50px;cursor:pointer;background:#fff;color:#333;font-weight:500;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:all .2s;}
+.order-history-btn:hover{background:#ff6b6b;color:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.2);}
+
+/* 弹窗位置调整，避免挡购物车 */
+#orderHistory{display:none;position:fixed;bottom:70px;right:20px;width:320px;height:60%;background:white;box-shadow:0 0 15px rgba(0,0,0,0.2);padding:20px;overflow-y:auto;z-index:250;border-radius:12px}
+#orderHistory h2{margin-bottom:10px}
+#orderHistory .close-history{cursor:pointer;float:right;color:#999;font-size:16px}
+#orderHistory .order-entry{border-bottom:1px solid #ddd;margin-bottom:10px;padding-bottom:5px;font-size:14px}
+
+@media(max-width:768px){.menu{padding:15px}.cart{width:100%}.order-history-btn{bottom:70px;right:15px}}
 </style>
 </head>
 <body>
 
-<div class="lang-switch">
-  <button onclick="setLang('zh')">中文</button>
-  <button onclick="setLang('en')">EN</button>
-  <button onclick="setLang('bm')">BM</button>
-</div>
+<select id="langSelect" onchange="setLang(this.value)">
+  <option value="zh">中文</option>
+  <option value="en">EN</option>
+  <option value="bm">BM</option>
+</select>
+
+<button class="order-history-btn" onclick="viewOrderHistory()"><span id="orderHistoryBtnText">订单历史</span></button>
 
 <header>
 <h1 id="title">🍽️ 智能餐厅</h1>
@@ -72,7 +80,15 @@ header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-con
 <button class="checkout" onclick="checkout()" id="checkoutBtn">立即结算</button>
 </div>
 
+<div id="orderHistory">
+<h2 id="orderHistoryTitle">订单历史</h2>
+<span class="close-history" onclick="closeOrderHistory()">✖</span>
+<div id="historyList"></div>
+</div>
+
 <script>
+// 设置当前用户
+let currentUser = "User1"; // 登录时替换成真实用户ID或用户名
 const currency="RM ",SST_RATE=0.06,SERVICE_RATE=0.10;
 
 const dishes=[
@@ -84,12 +100,12 @@ const dishes=[
 { name:{zh:'奶茶',en:'Milk Tea',bm:'Teh Susu'}, desc:{zh:'香浓顺滑',en:'Rich & Smooth',bm:'Penuh Rasa & Lembut'}, price:18, category:'饮品', img:'https://via.placeholder.com/400'}
 ];
 
-let cart=JSON.parse(localStorage.getItem("cart"))||[],currentCategory="全部",currentLang="zh";
+let cart=JSON.parse(localStorage.getItem("cart_" + currentUser))||[],currentCategory="全部",currentLang="zh";
 
 const translations={
-zh:{title:"🍽️ 智能餐厅",cart:"购物车",add:"加入购物车",checkout:"立即结算",subtotal:"小计",tax:"SST 6%",service:"服务费 10%",grandTotal:"总金额", remove:"删除"},
-en:{title:"🍽️ Smart Restaurant",cart:"Cart",add:"Add to Cart",checkout:"Checkout",subtotal:"Subtotal",tax:"SST 6%",service:"Service Charge 10%",grandTotal:"Grand Total", remove:"Remove"},
-bm:{title:"🍽️ Restoran Pintar",cart:"Troli",add:"Tambah",checkout:"Bayar",subtotal:"Jumlah",tax:"Cukai SST 6%",service:"Caj Perkhidmatan 10%",grandTotal:"Jumlah Keseluruhan", remove:"Buang"}
+zh:{title:"🍽️ 智能餐厅",cart:"购物车",add:"加入购物车",checkout:"立即结算",subtotal:"小计",tax:"SST 6%",service:"服务费 10%",grandTotal:"总金额", remove:"删除", noOrders:"暂无订单", orderHistory:"订单历史"},
+en:{title:"🍽️ Smart Restaurant",cart:"Cart",add:"Add to Cart",checkout:"Checkout",subtotal:"Subtotal",tax:"SST 6%",service:"Service Charge 10%",grandTotal:"Grand Total", remove:"Remove", noOrders:"No Orders", orderHistory:"Order History"},
+bm:{title:"🍽️ Restoran Pintar",cart:"Troli",add:"Tambah",checkout:"Bayar",subtotal:"Jumlah",tax:"Cukai SST 6%",service:"Caj Perkhidmatan 10%",grandTotal:"Jumlah Keseluruhan", remove:"Buang", noOrders:"Tiada Pesanan", orderHistory:"Sejarah Pesanan"}
 };
 
 const categoryTranslations={
@@ -99,7 +115,6 @@ bm:{全部:"Semua",主食:"Utama",小吃:"Sampingan",饮品:"Minuman"}
 };
 
 function formatMoney(num){return currency+num.toFixed(2)}
-
 function renderCategories(){
   const bar=document.getElementById("categoryBar");
   bar.innerHTML="";
@@ -108,9 +123,7 @@ function renderCategories(){
     bar.innerHTML+=`<button class="category-btn ${cat===currentCategory?'active':''}" onclick="filterCategory('${cat}')">${categoryTranslations[currentLang][cat]}</button>`;
   });
 }
-
 function filterCategory(cat){currentCategory=cat;renderCategories();renderMenu()}
-
 function renderMenu(){
   const menu=document.getElementById("menu");
   menu.innerHTML="";
@@ -127,18 +140,14 @@ function renderMenu(){
     </div>`;
   });
 }
-
 function addToCart(nameZh){
   const item=cart.find(i=>i.nameZh===nameZh);
   if(item)item.qty++; else {const dish=dishes.find(d=>d.name.zh===nameZh);cart.push({...dish,qty:1,nameZh});}
   saveCart()
 }
-
 function changeQty(nameZh,delta){const item=cart.find(i=>i.nameZh===nameZh);if(!item) return;item.qty+=delta;if(item.qty<=0) cart=cart.filter(i=>i.nameZh!==nameZh);saveCart()}
 function removeItem(nameZh){cart=cart.filter(i=>i.nameZh!==nameZh);saveCart()}
-
-function saveCart(){localStorage.setItem("cart",JSON.stringify(cart));renderCart()}
-
+function saveCart(){localStorage.setItem("cart_" + currentUser,JSON.stringify(cart));renderCart()}
 function renderCart(){
   const box=document.getElementById("cartItems");box.innerHTML="";
   let subtotal=0,count=0;
@@ -149,9 +158,7 @@ function renderCart(){
         <button class="qty-btn" onclick="changeQty('${i.nameZh}',-1)">-</button> ${i.qty} <button class="qty-btn" onclick="changeQty('${i.nameZh}',1)">+</button>
       </div>
       <div>${formatMoney(i.price*i.qty)}<br>
-        <button class="remove-btn" onclick="removeItem('${i.nameZh}')">
-          ${translations[currentLang].remove}
-        </button>
+        <button class="remove-btn" onclick="removeItem('${i.nameZh}')">${translations[currentLang].remove}</button>
       </div>
     </div>`;
   });
@@ -166,7 +173,6 @@ function renderCart(){
   document.getElementById("grandTotal").innerText=formatMoney(grand);
   document.getElementById("cartCount").innerText=count;
 }
-
 function toggleCart(){
   const cartEl=document.getElementById("cart");
   const menuEl=document.getElementById("menu");
@@ -174,21 +180,55 @@ function toggleCart(){
   cartEl.classList.toggle("open");
   setTimeout(()=>menuEl.style.marginRight=isOpen?"350px":"0px",10);
 }
-
 function closeCart(){document.getElementById("cart").classList.remove("open");document.getElementById("menu").style.marginRight="0px"}
-function checkout(){if(!cart.length){alert("购物车为空");return;}alert("下单成功！");cart=[];saveCart();toggleCart()}
 
+// 订单历史
+function saveOrderHistory(order){
+  let history = JSON.parse(localStorage.getItem("orderHistory_" + currentUser)) || [];
+  history.push(order);
+  localStorage.setItem("orderHistory_" + currentUser, JSON.stringify(history));
+}
+function checkout(){
+  if(!cart.length){ alert("购物车为空"); return; }
+  const order = {time:new Date().toLocaleString(), items:[...cart], subtotal:cart.reduce((sum,i)=>sum+i.price*i.qty,0)};
+  saveOrderHistory(order);
+  alert("下单成功！");
+  cart=[]; saveCart(); toggleCart();
+}
+function viewOrderHistory(){
+  const historyDiv=document.getElementById("orderHistory");
+  const historyList=document.getElementById("historyList");
+  historyList.innerHTML="";
+  const history=JSON.parse(localStorage.getItem("orderHistory_" + currentUser)) || [];
+  if(history.length===0){
+    historyList.innerHTML=`<p>${translations[currentLang].noOrders}</p>`;
+  }else{
+    history.slice().reverse().forEach((o,i)=>{
+      let html=`<div class="order-entry">
+        <strong>${translations[currentLang].orderHistory} ${history.length-i} - ${o.time}</strong><br>
+        ${o.items.map(it=>`${it.name[currentLang]} x${it.qty}`).join('<br>')}<br>
+        <em>Subtotal: ${currency}${o.subtotal.toFixed(2)}</em>
+      </div>`;
+      historyList.innerHTML+=html;
+    });
+  }
+  historyDiv.style.display="block";
+}
+function closeOrderHistory(){document.getElementById("orderHistory").style.display="none"}
 function setLang(lang){
   currentLang=lang;
   document.getElementById("title").innerText=translations[lang].title;
   document.getElementById("cartTitle").innerText=translations[lang].cart;
   document.getElementById("checkoutBtn").innerText=translations[lang].checkout;
-  renderCategories();renderMenu();renderCart();
-  document.querySelectorAll('.lang-switch button').forEach(btn=>btn.classList.toggle('active',btn.innerText.toLowerCase()===lang))
+  document.getElementById("orderHistoryBtnText").innerText=translations[lang].orderHistory;
+  document.getElementById("orderHistoryTitle").innerText=translations[lang].orderHistory;
+  renderCategories(); renderMenu(); renderCart();
+  if(document.getElementById("orderHistory").style.display==="block"){viewOrderHistory();}
+  document.getElementById("langSelect").value=lang;
 }
 
 // 初始化
-renderCategories();renderMenu();renderCart();
+renderCategories(); renderMenu(); renderCart();
 </script>
 </body>
 </html>
