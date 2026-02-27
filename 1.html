@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能餐厅点餐系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f9}
+header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+.cart-icon{position:relative;cursor:pointer;font-size:20px}
+.cart-badge{position:absolute;top:-8px;right:-10px;background:#2ed573;color:white;font-size:12px;padding:2px 6px;border-radius:50%}
+.banner{background:linear-gradient(45deg,#ff6b6b,#ff9f43);color:white;padding:40px;text-align:center;font-size:22px;font-weight:bold}
+.category-bar{display:flex;gap:10px;padding:15px 30px;flex-wrap:wrap;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.05)}
+.category-btn{padding:6px 14px;border:none;border-radius:20px;background:#eee;cursor:pointer}
+.category-btn.active{background:#ff6b6b;color:white}
+.menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;padding:30px;transition:margin-right 0.4s}
+.card{background:white;border-radius:14px;overflow:hidden;box-shadow:0 6px 15px rgba(0,0,0,0.06);transition:.3s}
+.card:hover{transform:translateY(-6px)}
+.card img{width:100%;height:160px;object-fit:cover}
+.card-body{padding:15px}
+.price{color:#ff6b6b;font-weight:bold;margin:8px 0}
+.add-btn{width:100%;padding:8px;border:none;background:#ff6b6b;color:white;border-radius:8px;cursor:pointer}
+.cart{position:fixed;right:-350px;top:0;width:320px;height:100%;background:white;box-shadow:-4px 0 15px rgba(0,0,0,0.1);transition:.4s;padding:20px;overflow-y:auto;z-index:200}
+.cart.open{right:0}
+.cart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+.close-cart{cursor:pointer;font-size:18px;color:#999}
+.close-cart:hover{color:#ff4757}
+.cart-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.qty-btn{background:#ff6b6b;border:none;color:white;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px}
+.remove-btn{background:none;border:none;color:#ff4757;cursor:pointer;font-size:12px}
+.summary-line{display:flex;justify-content:space-between;margin-top:5px}
+.total{margin-top:10px;font-weight:bold;font-size:16px}
+.checkout{margin-top:15px;width:100%;padding:10px;background:#2ed573;border:none;color:white;border-radius:8px;cursor:pointer}
+
+.lang-switch{position:fixed;top:15px;right:80px;z-index:2000;display:flex;gap:8px}
+.lang-switch button{padding:6px 12px;border:none;border-radius:8px;cursor:pointer;background:#fff;color:#333;font-weight:500;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:all .2s}
+.lang-switch button:hover{background:#ff6b6b;color:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+.lang-switch button.active{background:#ff6b6b;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+
+@media(max-width:768px){.menu{padding:15px}.cart{width:100%}.lang-switch{top:10px;right:15px}}
+</style>
+</head>
+<body>
+
+<div class="lang-switch">
+  <button onclick="setLang('zh')">中文</button>
+  <button onclick="setLang('en')">EN</button>
+  <button onclick="setLang('bm')">BM</button>
+</div>
+
+<header>
+<h1 id="title">🍽️ 智能餐厅</h1>
+<div class="cart-icon" onclick="toggleCart()">🛒<span class="cart-badge" id="cartCount">0</span></div>
+</header>
+
+<div class="category-bar" id="categoryBar"></div>
+<div class="menu" id="menu"></div>
+
+<div class="cart" id="cart">
+<div class="cart-header">
+<h2 id="cartTitle">购物车</h2>
+<span class="close-cart" onclick="closeCart()">✖</span>
+</div>
+<div id="cartItems"></div>
+
+<div class="summary-line"><span id="labelSubtotal"></span><span id="subtotal">RM 0.00</span></div>
+<div class="summary-line"><span id="labelSST"></span><span id="sst">RM 0.00</span></div>
+<div class="summary-line"><span id="labelService"></span><span id="service">RM 0.00</span></div>
+<div class="total summary-line"><span id="labelGrandTotal"></span><span id="grandTotal">RM 0.00</span></div>
+
+<button class="checkout" onclick="checkout()" id="checkoutBtn">立即结算</button>
+</div>
+
+<script>
+const currency="RM ",SST_RATE=0.06,SERVICE_RATE=0.10;
+
+const dishes=[
+{ name:{zh:'牛排',en:'Steak',bm:'Bistik'}, desc:{zh:'澳洲进口牛肉',en:'Imported Australian Beef',bm:'Daging Lembu Import Australia'}, price:88, category:'主食', img:'https://via.placeholder.com/400'},
+{ name:{zh:'披萨',en:'Pizza',bm:'Piza'}, desc:{zh:'芝士浓郁现烤',en:'Cheesy Freshly Baked',bm:'Keju Sedap Baru Dibakar'}, price:58, category:'主食', img:'https://via.placeholder.com/400'},
+{ name:{zh:'意面',en:'Pasta',bm:'Pasta'}, desc:{zh:'经典肉酱风味',en:'Classic Meat Sauce',bm:'Rasa Sos Daging Klasik'}, price:48, category:'主食', img:'https://via.placeholder.com/400'},
+{ name:{zh:'汉堡',en:'Burger',bm:'Burger'}, desc:{zh:'双层牛肉堡',en:'Double Beef Patty',bm:'Burger Daging Lapis Dua'}, price:36, category:'主食', img:'https://via.placeholder.com/400'},
+{ name:{zh:'薯条',en:'French Fries',bm:'Kentang Goreng'}, desc:{zh:'现炸酥脆',en:'Crispy & Freshly Fried',bm:'Renyah & Baru Digoreng'}, price:15, category:'小吃', img:'https://via.placeholder.com/400'},
+{ name:{zh:'奶茶',en:'Milk Tea',bm:'Teh Susu'}, desc:{zh:'香浓顺滑',en:'Rich & Smooth',bm:'Penuh Rasa & Lembut'}, price:18, category:'饮品', img:'https://via.placeholder.com/400'}
+];
+
+let cart=JSON.parse(localStorage.getItem("cart"))||[],currentCategory="全部",currentLang="zh";
+
+const translations={
+zh:{title:"🍽️ 智能餐厅",cart:"购物车",add:"加入购物车",checkout:"立即结算",subtotal:"小计",tax:"SST 6%",service:"服务费 10%",grandTotal:"总金额", remove:"删除"},
+en:{title:"🍽️ Smart Restaurant",cart:"Cart",add:"Add to Cart",checkout:"Checkout",subtotal:"Subtotal",tax:"SST 6%",service:"Service Charge 10%",grandTotal:"Grand Total", remove:"Remove"},
+bm:{title:"🍽️ Restoran Pintar",cart:"Troli",add:"Tambah",checkout:"Bayar",subtotal:"Jumlah",tax:"Cukai SST 6%",service:"Caj Perkhidmatan 10%",grandTotal:"Jumlah Keseluruhan", remove:"Buang"}
+};
+
+const categoryTranslations={
+zh:{全部:"全部",主食:"主食",小吃:"小吃",饮品:"饮品"},
+en:{全部:"All",主食:"Main",小吃:"Side",饮品:"Drink"},
+bm:{全部:"Semua",主食:"Utama",小吃:"Sampingan",饮品:"Minuman"}
+};
+
+function formatMoney(num){return currency+num.toFixed(2)}
+
+function renderCategories(){
+  const bar=document.getElementById("categoryBar");
+  bar.innerHTML="";
+  const cats=["全部",...new Set(dishes.map(d=>d.category))];
+  cats.forEach(cat=>{
+    bar.innerHTML+=`<button class="category-btn ${cat===currentCategory?'active':''}" onclick="filterCategory('${cat}')">${categoryTranslations[currentLang][cat]}</button>`;
+  });
+}
+
+function filterCategory(cat){currentCategory=cat;renderCategories();renderMenu()}
+
+function renderMenu(){
+  const menu=document.getElementById("menu");
+  menu.innerHTML="";
+  const list=currentCategory==="全部"?dishes:dishes.filter(d=>d.category===currentCategory);
+  list.forEach(d=>{
+    menu.innerHTML+=`<div class="card">
+      <img src="${d.img}">
+      <div class="card-body">
+        <h3>${d.name[currentLang]}</h3>
+        <p>${d.desc[currentLang]}</p>
+        <p class="price">${formatMoney(d.price)}</p>
+        <button class="add-btn" onclick="addToCart('${d.name.zh}')">${translations[currentLang].add}</button>
+      </div>
+    </div>`;
+  });
+}
+
+function addToCart(nameZh){
+  const item=cart.find(i=>i.nameZh===nameZh);
+  if(item)item.qty++; else {const dish=dishes.find(d=>d.name.zh===nameZh);cart.push({...dish,qty:1,nameZh});}
+  saveCart()
+}
+
+function changeQty(nameZh,delta){const item=cart.find(i=>i.nameZh===nameZh);if(!item) return;item.qty+=delta;if(item.qty<=0) cart=cart.filter(i=>i.nameZh!==nameZh);saveCart()}
+function removeItem(nameZh){cart=cart.filter(i=>i.nameZh!==nameZh);saveCart()}
+
+function saveCart(){localStorage.setItem("cart",JSON.stringify(cart));renderCart()}
+
+function renderCart(){
+  const box=document.getElementById("cartItems");box.innerHTML="";
+  let subtotal=0,count=0;
+  cart.forEach(i=>{
+    subtotal+=i.price*i.qty;count+=i.qty;
+    box.innerHTML+=`<div class="cart-item">
+      <div>${i.name[currentLang]} x${i.qty}<br>
+        <button class="qty-btn" onclick="changeQty('${i.nameZh}',-1)">-</button> ${i.qty} <button class="qty-btn" onclick="changeQty('${i.nameZh}',1)">+</button>
+      </div>
+      <div>${formatMoney(i.price*i.qty)}<br>
+        <button class="remove-btn" onclick="removeItem('${i.nameZh}')">
+          ${translations[currentLang].remove}
+        </button>
+      </div>
+    </div>`;
+  });
+  const sst=subtotal*SST_RATE,service=subtotal*SERVICE_RATE,grand=subtotal+sst+service;
+  document.getElementById("labelSubtotal").innerText=translations[currentLang].subtotal;
+  document.getElementById("subtotal").innerText=formatMoney(subtotal);
+  document.getElementById("labelSST").innerText=translations[currentLang].tax;
+  document.getElementById("sst").innerText=formatMoney(sst);
+  document.getElementById("labelService").innerText=translations[currentLang].service;
+  document.getElementById("service").innerText=formatMoney(service);
+  document.getElementById("labelGrandTotal").innerText=translations[currentLang].grandTotal;
+  document.getElementById("grandTotal").innerText=formatMoney(grand);
+  document.getElementById("cartCount").innerText=count;
+}
+
+function toggleCart(){
+  const cartEl=document.getElementById("cart");
+  const menuEl=document.getElementById("menu");
+  const isOpen=!cartEl.classList.contains("open");
+  cartEl.classList.toggle("open");
+  setTimeout(()=>menuEl.style.marginRight=isOpen?"350px":"0px",10);
+}
+
+function closeCart(){document.getElementById("cart").classList.remove("open");document.getElementById("menu").style.marginRight="0px"}
+function checkout(){if(!cart.length){alert("购物车为空");return;}alert("下单成功！");cart=[];saveCart();toggleCart()}
+
+function setLang(lang){
+  currentLang=lang;
+  document.getElementById("title").innerText=translations[lang].title;
+  document.getElementById("cartTitle").innerText=translations[lang].cart;
+  document.getElementById("checkoutBtn").innerText=translations[lang].checkout;
+  renderCategories();renderMenu();renderCart();
+  document.querySelectorAll('.lang-switch button').forEach(btn=>btn.classList.toggle('active',btn.innerText.toLowerCase()===lang))
+}
+
+// 初始化
+renderCategories();renderMenu();renderCart();
+</script>
+</body>
+</html>
