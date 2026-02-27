@@ -145,6 +145,24 @@ function addToCart(nameZh){
   if(item)item.qty++; else {const dish=dishes.find(d=>d.name.zh===nameZh);cart.push({...dish,qty:1,nameZh});}
   saveCart()
 }
+
+function addToCart(nameZh){
+  const item = cart.find(i => i.nameZh === nameZh);
+  if(item) item.qty++; 
+  else {
+    const dish = dishes.find(d => d.name.zh === nameZh);
+    cart.push({...dish, qty:1, nameZh});
+  }
+
+  saveCart();
+
+  // 自动弹出购物车（如果当前是关闭状态）
+  const cartEl = document.getElementById("cart");
+  if(!cartEl.classList.contains("open")){
+    toggleCart();
+  }
+}
+
 function changeQty(nameZh,delta){const item=cart.find(i=>i.nameZh===nameZh);if(!item) return;item.qty+=delta;if(item.qty<=0) cart=cart.filter(i=>i.nameZh!==nameZh);saveCart()}
 function removeItem(nameZh){cart=cart.filter(i=>i.nameZh!==nameZh);saveCart()}
 function saveCart(){localStorage.setItem("cart_" + currentUser,JSON.stringify(cart));renderCart()}
