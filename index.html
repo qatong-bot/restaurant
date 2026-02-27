@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智能餐厅会员点餐系统</title>
+<title>智能餐厅菜单</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f4f6f9}
@@ -20,14 +20,15 @@ header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-con
 .card-body{padding:15px}
 .price{color:#ff6b6b;font-weight:bold;margin:8px 0}
 .add-btn{width:100%;padding:8px;border:none;background:#ff6b6b;color:white;border-radius:8px;cursor:pointer}
-.cart{position:fixed;right:10px;top:80px;width:320px;height:80%;background:white;box-shadow:0 0 15px rgba(0,0,0,0.2);padding:20px;overflow-y:auto;z-index:200;border-radius:12px}
+.cart{position:fixed;right:-350px;top:0;width:320px;height:100%;background:white;box-shadow:-4px 0 15px rgba(0,0,0,0.1);transition:.4s;padding:20px;overflow-y:auto;z-index:200}
+.cart.open{right:0}
 .cart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
 .close-cart{cursor:pointer;font-size:18px;color:#999}
 .close-cart:hover{color:#ff4757}
 .cart-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .qty-btn{background:#ff6b6b;border:none;color:white;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px}
 .remove-btn{background:none;border:none;color:#ff4757;cursor:pointer;font-size:12px}
-.summary-line{display:flex;justify-content:space-between;margin-top:5px}
+.summary-line{display:flex;justify-content:space-between;margin-top:5px;align-items:center}
 .total{margin-top:10px;font-weight:bold;font-size:16px}
 .checkout{margin-top:15px;width:100%;padding:10px;background:#2ed573;border:none;color:white;border-radius:8px;cursor:pointer}
 #langSelect{padding:6px 10px;border-radius:6px;cursor:pointer;position:fixed;top:15px;right:80px;z-index:2000;}
@@ -37,26 +38,24 @@ header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-con
 #orderHistory h2{margin-bottom:10px}
 #orderHistory .close-history{cursor:pointer;float:right;color:#999;font-size:16px}
 #orderHistory .order-entry{border-bottom:1px solid #ddd;margin-bottom:10px;padding-bottom:5px;font-size:14px}
-.logout-btn{padding:6px 12px;border:none;border-radius:6px;background:#fff;color:#ff6b6b;font-weight:bold;cursor:pointer;margin-left:10px}
-.logout-btn:hover{background:#ff4757;color:#fff;}
-@media(max-width:768px){.menu{padding:15px}.cart{width:95%}.order-history-btn{bottom:70px;right:15px}}
+@media(max-width:768px){.menu{padding:15px}.cart{width:100%}.order-history-btn{bottom:70px;right:15px}}
 </style>
 </head>
 <body>
 
-<select id="langSelect" onchange="setLang(this.value)">
+<select id="langSelect">
   <option value="zh">中文</option>
   <option value="en">EN</option>
   <option value="bm">BM</option>
 </select>
 
-<button class="order-history-btn" onclick="viewOrderHistory()"><span id="orderHistoryBtnText">订单历史</span></button>
+<button class="order-history-btn" onclick="viewOrderHistory()">订单历史</button>
 
 <header>
 <h1 id="title">🍽️ 智能餐厅</h1>
 <div>
   <span id="userDisplay"></span>
-  <button class="logout-btn" onclick="logout()">登出</button>
+  <button id="logoutBtn" onclick="logout()">登出</button>
 </div>
 <div class="cart-icon" onclick="toggleCart()">🛒<span class="cart-badge" id="cartCount">0</span></div>
 </header>
@@ -66,60 +65,59 @@ header{background:#ff6b6b;color:white;padding:15px 25px;display:flex;justify-con
 
 <div class="cart" id="cart">
 <div class="cart-header">
-<h2 id="cartTitle">购物车</h2>
+<h2>购物车</h2>
 <span class="close-cart" onclick="closeCart()">✖</span>
 </div>
 <div id="cartItems"></div>
 
-<div class="summary-line"><span id="labelSubtotal"></span><span id="subtotal">RM 0.00</span></div>
-<div class="summary-line"><span id="labelSST"></span><span id="sst">RM 0.00</span></div>
-<div class="summary-line"><span id="labelService"></span><span id="service">RM 0.00</span></div>
-<div class="total summary-line"><span id="labelGrandTotal"></span><span id="grandTotal">RM 0.00</span></div>
-
-<button class="checkout" onclick="checkout()" id="checkoutBtn">立即结算</button>
+<div class="summary-line"><span>小计</span><span id="subtotal">RM 0.00</span></div>
+<div class="summary-line"><span>SST 6%</span><span id="sst">RM 0.00</span></div>
+<div class="summary-line"><span>服务费 10%</span><span id="service">RM 0.00</span></div>
+<div class="summary-line">
+<span>折扣
+<select id="discountSelect" onchange="renderCart()">
+  <option value="0">0%</option>
+  <option value="5">5%</option>
+  <option value="10">10%</option>
+  <option value="15">15%</option>
+  <option value="20">20%</option>
+</select>
+</span>
+<span id="discount">RM 0.00</span>
+</div>
+<div class="total summary-line"><span>总金额</span><span id="grandTotal">RM 0.00</span></div>
+<button class="checkout" onclick="checkout()">立即结算</button>
 </div>
 
 <div id="orderHistory">
-<h2 id="orderHistoryTitle">订单历史</h2>
+<h2>订单历史</h2>
 <span class="close-history" onclick="closeOrderHistory()">✖</span>
 <div id="historyList"></div>
 </div>
 
 <script>
-const SST_RATE=0.06,SERVICE_RATE=0.10;
+const SST_RATE=0.06, SERVICE_RATE=0.10;
 const dishes=[
-{ name:{zh:'牛排',en:'Steak',bm:'Bistik'}, price:88, category:'主食', img:'https://via.placeholder.com/400'},
-{ name:{zh:'披萨',en:'Pizza',bm:'Piza'}, price:58, category:'主食', img:'https://via.placeholder.com/400'},
-{ name:{zh:'意面',en:'Pasta',bm:'Pasta'}, price:48, category:'主食', img:'https://via.placeholder.com/400'},
-{ name:{zh:'汉堡',en:'Burger',bm:'Burger'}, price:36, category:'主食', img:'https://via.placeholder.com/400'},
-{ name:{zh:'薯条',en:'French Fries',bm:'Kentang Goreng'}, price:15, category:'小吃', img:'https://via.placeholder.com/400'},
-{ name:{zh:'奶茶',en:'Milk Tea',bm:'Teh Susu'}, price:18, category:'饮品', img:'https://via.placeholder.com/400'}
+  { name:{zh:'牛排'}, price:88, category:'主食'},
+  { name:{zh:'披萨'}, price:58, category:'主食'},
+  { name:{zh:'意面'}, price:48, category:'主食'},
+  { name:{zh:'汉堡'}, price:36, category:'主食'},
+  { name:{zh:'薯条'}, price:15, category:'小吃'},
+  { name:{zh:'奶茶'}, price:18, category:'饮品'}
 ];
 
+// 登录检查
 let currentUser = localStorage.getItem("currentUser");
-if(!currentUser){
-  alert("请先登录！");
-  window.location.href="login.html";
-}
-
-document.getElementById("userDisplay").innerText="会员: "+currentUser;
+if(!currentUser){ window.location.href="login.html"; }
+else{document.getElementById("userDisplay").innerText="会员: "+currentUser;}
 
 let cart=[];
-let currentLang="zh";
-const translations={
-zh:{title:"🍽️ 智能餐厅",cart:"购物车",add:"加入购物车",checkout:"立即结算",subtotal:"小计",tax:"SST 6%",service:"服务费 10%",grandTotal:"总金额", remove:"删除", noOrders:"暂无订单", orderHistory:"订单历史"},
-en:{title:"🍽️ Smart Restaurant",cart:"Cart",add:"Add to Cart",checkout:"Checkout",subtotal:"Subtotal",tax:"SST 6%",service:"Service Charge 10%",grandTotal:"Grand Total", remove:"Remove", noOrders:"No Orders", orderHistory:"Order History"},
-bm:{title:"🍽️ Restoran Pintar",cart:"Troli",add:"Tambah",checkout:"Bayar",subtotal:"Jumlah",tax:"Cukai SST 6%",service:"Caj Perkhidmatan 10%",grandTotal:"Jumlah Keseluruhan", remove:"Buang", noOrders:"Tiada Pesanan", orderHistory:"Sejarah Pesanan"}
-};
 
-function formatMoney(num){return "RM "+num.toFixed(2);}
 function renderCategories(){
   const bar=document.getElementById("categoryBar");
   bar.innerHTML="";
   const cats=["全部",...new Set(dishes.map(d=>d.category))];
-  cats.forEach(cat=>{
-    bar.innerHTML+=`<button class="category-btn" onclick="filterCategory('${cat}')">${cat}</button>`;
-  });
+  cats.forEach(cat=>{bar.innerHTML+=`<button class="category-btn" onclick="filterCategory('${cat}')">${cat}</button>`;});
 }
 function filterCategory(cat){renderMenu(cat);}
 function renderMenu(cat="全部"){
@@ -128,86 +126,100 @@ function renderMenu(cat="全部"){
   const list=cat==="全部"?dishes:dishes.filter(d=>d.category===cat);
   list.forEach(d=>{
     menu.innerHTML+=`<div class="card" onclick="addToCart('${d.name.zh}')">
-      <img src="${d.img}">
       <div class="card-body">
-        <h3>${d.name[currentLang]}</h3>
-        <p class="price">${formatMoney(d.price)}</p>
+        <h3>${d.name.zh}</h3>
+        <p class="price">RM ${d.price.toFixed(2)}</p>
+        <button class="add-btn" onclick="event.stopPropagation();addToCart('${d.name.zh}')">加入购物车</button>
       </div>
     </div>`;
   });
 }
 
-function addToCart(nameZh){
-  const item=cart.find(i=>i.nameZh===nameZh);
-  if(item) item.qty++; else {const dish=dishes.find(d=>d.name.zh===nameZh);cart.push({...dish,qty:1,nameZh});}
-  saveCart();
-  document.getElementById("cart").scrollIntoView({behavior:"smooth"});
+function addToCart(name){
+  const item=cart.find(i=>i.name===name);
+  if(item) item.qty++; else {const dish=dishes.find(d=>d.name.zh===name);cart.push({...dish,qty:1,name});}
+  renderCart();
+  const cartEl=document.getElementById("cart");
+  if(!cartEl.classList.contains("open")) toggleCart();
 }
 
-function changeQty(nameZh,delta){const item=cart.find(i=>i.nameZh===nameZh);if(!item) return;item.qty+=delta;if(item.qty<=0) cart=cart.filter(i=>i.nameZh!==nameZh);saveCart();}
-function removeItem(nameZh){cart=cart.filter(i=>i.nameZh!==nameZh);saveCart();}
-function saveCart(){localStorage.setItem("cart_"+currentUser,JSON.stringify(cart));renderCart();}
+function changeQty(name,delta){const item=cart.find(i=>i.name===name);if(!item)return;item.qty+=delta;if(item.qty<=0) cart=cart.filter(i=>i.name!==name);renderCart();}
+function removeItem(name){cart=cart.filter(i=>i.name!==name);renderCart();}
+
 function renderCart(){
   const box=document.getElementById("cartItems");box.innerHTML="";
   let subtotal=0,count=0;
   cart.forEach(i=>{subtotal+=i.price*i.qty;count+=i.qty;
     box.innerHTML+=`<div class="cart-item">
-      <div>${i.name[currentLang]} x${i.qty}<br>
-        <button class="qty-btn" onclick="changeQty('${i.nameZh}',-1)">-</button> ${i.qty} <button class="qty-btn" onclick="changeQty('${i.nameZh}',1)">+</button>
+      <div>${i.name} x${i.qty}<br>
+        <button class="qty-btn" onclick="changeQty('${i.name}',-1)">-</button> ${i.qty} <button class="qty-btn" onclick="changeQty('${i.name}',1)">+</button>
       </div>
-      <div>${formatMoney(i.price*i.qty)}<br>
-        <button class="remove-btn" onclick="removeItem('${i.nameZh}')">${translations[currentLang].remove}</button>
+      <div>RM ${(i.price*i.qty).toFixed(2)}<br>
+        <button class="remove-btn" onclick="removeItem('${i.name}')">删除</button>
       </div>
     </div>`;
   });
-  const sst=subtotal*SST_RATE, service=subtotal*SERVICE_RATE, grand=subtotal+sst+service;
-  document.getElementById("labelSubtotal").innerText=translations[currentLang].subtotal;
-  document.getElementById("subtotal").innerText=formatMoney(subtotal);
-  document.getElementById("labelSST").innerText=translations[currentLang].tax;
-  document.getElementById("sst").innerText=formatMoney(sst);
-  document.getElementById("labelService").innerText=translations[currentLang].service;
-  document.getElementById("service").innerText=formatMoney(service);
-  document.getElementById("labelGrandTotal").innerText=translations[currentLang].grandTotal;
-  document.getElementById("grandTotal").innerText=formatMoney(grand);
+  const discountPercent=parseFloat(document.getElementById("discountSelect").value);
+  const discountAmount=subtotal*discountPercent/100;
+  const sst=subtotal*SST_RATE, service=subtotal*SERVICE_RATE;
+  const grand=subtotal+sst+service-discountAmount;
+  document.getElementById("subtotal").innerText="RM "+subtotal.toFixed(2);
+  document.getElementById("sst").innerText="RM "+sst.toFixed(2);
+  document.getElementById("service").innerText="RM "+service.toFixed(2);
+  document.getElementById("discount").innerText="RM "+discountAmount.toFixed(2);
+  document.getElementById("grandTotal").innerText="RM "+grand.toFixed(2);
   document.getElementById("cartCount").innerText=count;
 }
 
-function toggleCart(){const c=document.getElementById("cart");c.style.display=c.style.display==="block"?"none":"block";}
-function closeCart(){document.getElementById("cart").style.display="none";}
+function toggleCart(){
+  const cartEl=document.getElementById("cart");
+  const menuEl=document.getElementById("menu");
+  cartEl.classList.toggle("open");
+  if(cartEl.classList.contains("open")) menuEl.style.marginRight="340px";
+  else menuEl.style.marginRight="0";
+}
+function closeCart(){document.getElementById("cart").classList.remove("open");document.getElementById("menu").style.marginRight="0";}
+
 function checkout(){
-  if(!cart.length){alert("购物车为空"); return;}
-  let subtotal=cart.reduce((sum,i)=>sum+i.price*i.qty,0);
-  let sst=subtotal*SST_RATE, service=subtotal*SERVICE_RATE, grand=subtotal+sst+service;
-  // 保存订单
+  if(!cart.length){alert("购物车为空");return;}
+  const discountPercent=parseFloat(document.getElementById("discountSelect").value);
+  const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const sst=subtotal*SST_RATE;
+  const service=subtotal*SERVICE_RATE;
+  const discountAmount=subtotal*discountPercent/100;
+  const grand=subtotal+sst+service-discountAmount;
+
   let orders=JSON.parse(localStorage.getItem("orders_"+currentUser))||[];
-  orders.push({time:new Date().toLocaleString(),items:cart,subtotal,sst,service,grand});
+  orders.push({time:new Date().toLocaleString(),items:[...cart],subtotal,sst,service,discountAmount,grand});
   localStorage.setItem("orders_"+currentUser,JSON.stringify(orders));
-  alert("下单成功！");
-  cart=[]; saveCart();
+
+  alert("下单成功！总金额RM "+grand.toFixed(2));
+  cart=[]; renderCart();
+  toggleCart();
 }
 
 function viewOrderHistory(){
   const historyDiv=document.getElementById("orderHistory");
   const historyList=document.getElementById("historyList"); historyList.innerHTML="";
   const orders=JSON.parse(localStorage.getItem("orders_"+currentUser))||[];
-  if(orders.length===0){historyList.innerHTML=`<p>${translations[currentLang].noOrders}</p>`;}
+  if(orders.length===0){historyList.innerHTML=`<p>暂无订单</p>`;}
   else{
     orders.slice().reverse().forEach((o,i)=>{
-      let itemsHTML=o.items.map(it=>`${it.name[currentLang]} x${it.qty}`).join("<br>");
-      historyList.innerHTML+=`<div class="order-entry"><strong>${translations[currentLang].orderHistory} ${orders.length-i} - ${o.time}</strong><br>${itemsHTML}<br>
+      let itemsHTML=o.items.map(it=>`${it.name} x${it.qty}`).join("<br>");
+      historyList.innerHTML+=`<div class="order-entry"><strong>订单 ${orders.length-i} - ${o.time}</strong><br>${itemsHTML}<br>
       <em>总额: RM ${o.grand.toFixed(2)}</em></div>`;
     });
   }
   historyDiv.style.display="block";
 }
 function closeOrderHistory(){document.getElementById("orderHistory").style.display="none";}
-function setLang(lang){currentLang=lang;renderCategories();renderMenu();renderCart();}
+
 function logout(){
   localStorage.removeItem("currentUser");
   window.location.href="login.html";
 }
 
-renderCategories();renderMenu();renderCart();
+renderCategories(); renderMenu();
 </script>
 </body>
 </html>
