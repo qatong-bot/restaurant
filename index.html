@@ -184,9 +184,9 @@ function closeCart(){document.getElementById("cart").classList.remove("open");do
 
 // 订单历史
 function saveOrderHistory(order){
-  let history = JSON.parse(localStorage.getItem("orderHistory_" + currentUser)) || [];
-  history.push(order);
-  localStorage.setItem("orderHistory_" + currentUser, JSON.stringify(history));
+ // 改为会话存储
+let history = JSON.parse(sessionStorage.getItem("orderHistory_" + currentUser)) || [];
+sessionStorage.setItem("orderHistory_" + currentUser, JSON.stringify(history));
 }
 function closeOrderHistory(){document.getElementById("orderHistory").style.display="none"}
 function setLang(lang){
@@ -333,6 +333,45 @@ function viewOrderHistory(){
     });
 
     // 在最后显示累计总金额
+    historyList.innerHTML += `<div class="order-entry" style="border-top:2px solid #ff6b6b; font-weight:bold; margin-top:10px; padding-top:5px;">
+      累计消费总额: ${currency}${totalGrand.toFixed(2)}
+    </div>`;
+  }
+
+  historyDiv.style.display = "block";
+}
+
+function saveOrderHistory(order){
+  let history = JSON.parse(sessionStorage.getItem("orderHistory_" + currentUser)) || [];
+  history.push(order);
+  sessionStorage.setItem("orderHistory_" + currentUser, JSON.stringify(history));
+}
+
+function viewOrderHistory(){
+  const historyDiv = document.getElementById("orderHistory");
+  const historyList = document.getElementById("historyList");
+  historyList.innerHTML="";
+
+  const history = JSON.parse(sessionStorage.getItem("orderHistory_" + currentUser)) || [];
+  if(history.length===0){
+    historyList.innerHTML=`<p>${translations[currentLang].noOrders}</p>`;
+  } else {
+    let totalGrand = 0;
+    history.slice().reverse().forEach((o,i)=>{
+      let itemsHTML = o.items.map(it=>{
+        const name = (it.name && it.name[currentLang]) || it.nameZh || it.name || "未知菜品";
+        return `${name} x${it.qty}`;
+      }).join('<br>');
+
+      totalGrand += o.grandTotal || 0;
+
+      historyList.innerHTML += `<div class="order-entry">
+        <strong>${translations[currentLang].orderHistory} ${history.length-i} - ${o.time || "未知时间"}</strong><br>
+        ${itemsHTML}<br>
+        <em>${translations[currentLang].subtotal} + ${translations[currentLang].tax} + ${translations[currentLang].service} = ${currency}${(o.grandTotal||0).toFixed(2)}</em>
+      </div>`;
+    });
+
     historyList.innerHTML += `<div class="order-entry" style="border-top:2px solid #ff6b6b; font-weight:bold; margin-top:10px; padding-top:5px;">
       累计消费总额: ${currency}${totalGrand.toFixed(2)}
     </div>`;
