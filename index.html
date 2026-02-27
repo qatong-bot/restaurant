@@ -188,32 +188,6 @@ function saveOrderHistory(order){
   history.push(order);
   localStorage.setItem("orderHistory_" + currentUser, JSON.stringify(history));
 }
-function checkout(){
-  if(!cart.length){ alert("购物车为空"); return; }
-  const order = {time:new Date().toLocaleString(), items:[...cart], subtotal:cart.reduce((sum,i)=>sum+i.price*i.qty,0)};
-  saveOrderHistory(order);
-  alert("下单成功！");
-  cart=[]; saveCart(); toggleCart();
-}
-function viewOrderHistory(){
-  const historyDiv=document.getElementById("orderHistory");
-  const historyList=document.getElementById("historyList");
-  historyList.innerHTML="";
-  const history=JSON.parse(localStorage.getItem("orderHistory_" + currentUser)) || [];
-  if(history.length===0){
-    historyList.innerHTML=`<p>${translations[currentLang].noOrders}</p>`;
-  }else{
-    history.slice().reverse().forEach((o,i)=>{
-      let html=`<div class="order-entry">
-        <strong>${translations[currentLang].orderHistory} ${history.length-i} - ${o.time}</strong><br>
-        ${o.items.map(it=>`${it.name[currentLang]} x${it.qty}`).join('<br>')}<br>
-        <em>Subtotal: ${currency}${o.subtotal.toFixed(2)}</em>
-      </div>`;
-      historyList.innerHTML+=html;
-    });
-  }
-  historyDiv.style.display="block";
-}
 function closeOrderHistory(){document.getElementById("orderHistory").style.display="none"}
 function setLang(lang){
   currentLang=lang;
@@ -225,6 +199,146 @@ function setLang(lang){
   renderCategories(); renderMenu(); renderCart();
   if(document.getElementById("orderHistory").style.display==="block"){viewOrderHistory();}
   document.getElementById("langSelect").value=lang;
+}
+
+(function migrateOldOrderHistory(){
+  const key = "orderHistory_" + currentUser;
+  let history = JSON.parse(localStorage.getItem(key)) || [];
+  let changed = false;
+
+  history = history.map(o => {
+    // 如果 grandTotal 已存在，说明是新格式，无需修改
+    if(o.grandTotal !== undefined) return o;
+
+    const subtotal = o.subtotal || (o.items ? o.items.reduce((sum,i)=>sum+(i.price*i.qty),0) : 0);
+    const sst = subtotal * SST_RATE;
+    const service = subtotal * SERVICE_RATE;
+    const grandTotal = subtotal + sst + service;
+
+    changed = true;
+    return {
+      time: o.time || new Date().toLocaleString(),
+      items: o.items.map(i=>({
+        nameZh: i.nameZh || i.name || "未知菜品",
+        name: i.name || {},
+        qty: i.qty || 0,
+        price: i.price || 0
+      })),
+      subtotal,
+      sst,
+      service,
+      grandTotal
+    };
+  });
+
+  if(changed){
+    localStorage.setItem(key, JSON.stringify(history));
+    console.log("旧订单历史已迁移到新格式 ✅");
+  }
+})();
+function checkout(){
+  if(!cart.length){ alert("购物车为空"); return; }
+
+  const subtotal = cart.reduce((sum,i)=>sum+i.price*i.qty,0);
+  const sst = subtotal * SST_RATE;
+  const service = subtotal * SERVICE_RATE;
+  const grandTotal = subtotal + sst + service;
+
+  // 存订单时直接把总额存进去
+  const order = {
+    time: new Date().toLocaleString(),
+    items: cart.map(i=>({
+      nameZh: i.nameZh,
+      name: i.name,
+      qty: i.qty,
+      price: i.price
+    })),
+    subtotal,
+    sst,
+    service,
+    grandTotal
+  };
+
+  saveOrderHistory(order);
+  alert("下单成功！");
+  cart=[]; saveCart(); toggleCart();
+}
+
+function viewOrderHistory(){
+  const historyDiv = document.getElementById("orderHistory");
+  const historyList = document.getElementById("historyList");
+  historyList.innerHTML="";
+
+  const history = JSON.parse(localStorage.getItem("orderHistory_" + currentUser)) || [];
+  if(history.length===0){
+    historyList.innerHTML=`<p>${translations[currentLang].noOrders}</p>`;
+  } else {
+    history.slice().reverse().forEach((o,i)=>{
+      let itemsHTML = '';
+      try {
+        itemsHTML = o.items.map(it=>{
+          const name = (it.name && it.name[currentLang]) || it.nameZh || it.name || "未知菜品";
+          const qty = it.qty || 0;
+          return `${name} x${qty}`;
+        }).join('<br>');
+      } catch(e){
+        itemsHTML = "无法显示菜品";
+        console.error("订单历史显示错误", e);
+      }
+
+      // 显示 subtotal + SST + 服务费 + 总额
+      let html = `<div class="order-entry">
+        <strong>${translations[currentLang].orderHistory} ${history.length-i} - ${o.time || "未知时间"}</strong><br>
+        ${itemsHTML}<br>
+        <em>${translations[currentLang].subtotal} + ${translations[currentLang].tax} + ${translations[currentLang].service} = ${currency}${(o.grandTotal||0).toFixed(2)}</em>
+      </div>`;
+      historyList.innerHTML += html;
+    });
+  }
+
+  historyDiv.style.display = "block";
+}
+function viewOrderHistory(){
+  const historyDiv = document.getElementById("orderHistory");
+  const historyList = document.getElementById("historyList");
+  historyList.innerHTML="";
+
+  const history = JSON.parse(localStorage.getItem("orderHistory_" + currentUser)) || [];
+  if(history.length===0){
+    historyList.innerHTML=`<p>${translations[currentLang].noOrders}</p>`;
+  } else {
+    let totalGrand = 0; // 累计所有订单的总额
+
+    history.slice().reverse().forEach((o,i)=>{
+      let itemsHTML = '';
+      try {
+        itemsHTML = o.items.map(it=>{
+          const name = (it.name && it.name[currentLang]) || it.nameZh || it.name || "未知菜品";
+          const qty = it.qty || 0;
+          return `${name} x${qty}`;
+        }).join('<br>');
+      } catch(e){
+        itemsHTML = "无法显示菜品";
+        console.error("订单历史显示错误", e);
+      }
+
+      totalGrand += o.grandTotal || 0;
+
+      let html = `<div class="order-entry">
+        <strong>${translations[currentLang].orderHistory} ${history.length-i} - ${o.time || "未知时间"}</strong><br>
+        ${itemsHTML}<br>
+        <em>${translations[currentLang].subtotal} + ${translations[currentLang].tax} + ${translations[currentLang].service} = ${currency}${(o.grandTotal||0).toFixed(2)}</em>
+      </div>`;
+      historyList.innerHTML += html;
+    });
+
+    // 在最后显示累计总金额
+    historyList.innerHTML += `<div class="order-entry" style="border-top:2px solid #ff6b6b; font-weight:bold; margin-top:10px; padding-top:5px;">
+      累计消费总额: ${currency}${totalGrand.toFixed(2)}
+    </div>`;
+  }
+
+  historyDiv.style.display = "block";
 }
 
 // 初始化
